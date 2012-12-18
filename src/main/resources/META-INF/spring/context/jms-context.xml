@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:int-jms="http://www.springframework.org/schema/integration/jms"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-2.1.xsd
+		http://www.springframework.org/schema/integration/jms http://www.springframework.org/schema/integration/jms/spring-integration-jms-2.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-3.1.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd">
+
+	<bean id="activemqConnectionFactoryRedelivery" class="org.apache.activemq.ActiveMQConnectionFactory">
+		<property name="brokerURL" value="failover:(tcp://localhost:61616)?timeout=5000"/>
+		<property name="prefetchPolicy" ref="queuePrefetchPolicy"/>
+		<property name="redeliveryPolicy" ref="continualRedeliveryPolicy"/>
+	</bean>
+	
+	<bean id="continualRedeliveryPolicy" class="org.apache.activemq.RedeliveryPolicy">
+		<property name="maximumRedeliveries" value="-1" />
+		<property name="useExponentialBackOff" value="true" />
+		<property name="backOffMultiplier" value="2" />
+		<property name="initialRedeliveryDelay" value="5000"/> 		<!-- Start with 5 second delay. -->
+		<property name="redeliveryDelay" value="5000" /> 			<!-- Start with 5 second delay. -->
+		<property name="maximumRedeliveryDelay" value="300000" /> 	<!-- 5 minutes max delay. -->
+	</bean>
+	
+
+	<bean id="queuePrefetchPolicy" class="org.apache.activemq.ActiveMQPrefetchPolicy">  
+		<property name="queuePrefetch" value="1000"/>  
+	</bean>				
+
+	<!-- Default connection factory. -->
+	<bean id="connectionFactory" class="org.springframework.jms.connection.CachingConnectionFactory">
+		<property name="targetConnectionFactory" ref="activemqConnectionFactoryRedelivery"/>
+		<property name="sessionCacheSize" value="1"/>		
+ 	</bean>
+ 	
+ 	<bean id="jmsTransactionManager" class="org.springframework.jms.connection.JmsTransactionManager">
+ 		<property name="connectionFactory" ref="connectionFactory"/>
+ 	</bean>
+
+</beans>

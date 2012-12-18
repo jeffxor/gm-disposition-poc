@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-jms="http://www.springframework.org/schema/integration/jms"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-2.1.xsd
+		http://www.springframework.org/schema/integration/jms http://www.springframework.org/schema/integration/jms/spring-integration-jms-2.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+
+
+	<int-jms:inbound-channel-adapter channel="aggregateGMDisposition"		
+		extract-payload="true"
+		destination-name="GM.Dispositions.POC">
+		<int:poller fixed-rate="20000" max-messages-per-poll="50"/>
+	</int-jms:inbound-channel-adapter>
+<!-- 	
+	<bean id="gmDispositionProcessingJmsTemplate" class="org.springframework.jms.core.JmsTemplate">
+		<property name="connectionFactory" ref="connectionFactory"/>
+		<property name="defaultDestinationName" value="GM.Dispositions.POC"/>
+		<property name="sessionTransacted" value="true"/>
+		<property name=""></property>
+	</bean>
+	
+	<int:chain input-channel="processGMDisposition" output-channel="processedGMDisposition">
+		<int:aggregator ref="gmDispositionAggregator"
+			method="aggregate"
+			send-partial-result-on-expiry="true" 
+			release-strategy="gmReleaseStrategy"
+			correlation-strategy="gmCorrelationStrategy"/>
+		<int:splitter ref="gmAggregatorSplitter"
+			method="splitter"/>	
+	</int:chain>
+ -->	
+	<int:aggregator input-channel="aggregateGMDisposition" output-channel="proccessGMDisposition" 
+			ref="gmDispositionAggregator"
+			method="aggregate"
+			send-partial-result-on-expiry="true"
+			expire-groups-upon-completion="true"						
+			release-strategy="gmReleaseStrategy"
+			correlation-strategy="gmCorrelationStrategy"/>
+	<int:service-activator input-channel="proccessGMDisposition" output-channel="splitGMDisposition"
+			ref="gmDispositionService"
+			method="gmDispositionService"/>		
+	<int:splitter input-channel="splitGMDisposition" output-channel="processedGMDisposition"
+			ref="gmAggregatorSplitter"
+			method="splitter"/>	
+						
+	
+	<int:channel id="processedGMDisposition"/>
+	<int-jms:outbound-channel-adapter channel="processedGMDisposition" 									  
+  									  explicit-qos-enabled="true"
+  									  destination-name="GM.Dispositions.Processed"/> 	
+<!-- 	
+	<int:channel id="processedGMDisposition">
+		<int:queue/>
+	</int:channel>
+ -->
+	<bean id="gmReleaseStrategy" class="org.springframework.integration.aggregator.TimeoutCountSequenceSizeReleaseStrategy">
+		<constructor-arg name="threshold" value="50"/>
+		<constructor-arg name="timeout" value="10000"/>
+	</bean>
+	
+	<bean id="gmCorrelationStrategy" class="org.springframework.integration.aggregator.HeaderAttributeCorrelationStrategy">
+		<constructor-arg value="leadProvider"/>
+	</bean>	
+
+	<bean id="gmDispositionAggregator" class="org.gm.dispositions.integration.SimpleMessagePayloadAggregator"/>
+	
+	<bean id="gmAggregatorSplitter" class="org.gm.dispositions.integration.SimpleAggregateMessageSplitter"/>
+	
+	<bean id="gmDispositionService" class="org.gm.dispositions.integration.SimpleGMDispositionService"/>
+</beans>
